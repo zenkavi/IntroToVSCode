@@ -52,6 +52,19 @@ claude() {
 }
 ```
 
+You could work with a virtualenv in the container using the follows:
+
+```
+claude() {
+    singularity exec \
+        --bind "$HOME/.claude:/root/.claude" \
+	    --bind "$PWD:$PWD" \
+        --bind "/hopper/groups/enkavilab/pyenvs:/hopper/groups/enkavilab/pyenvs" \
+        --pwd "$PWD" \
+        /hopper/home/zenkavi/claude_code.sif claude "$@"
+}
+```
+
 ## Authenticate account on HPC 
 
 For Hopper we can use the JupyterHub browser
