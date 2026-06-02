@@ -1,11 +1,19 @@
-# Options for virtual env management
+# Options for Python version and package management
 
-I don't like that `conda` (a popular package management system for python) changes the python paths in `{PATH}`. I also don't like the difficulty of installing different versions of Python with it and how it's ability to install from different channels can interfere with dependencies. 
+I don't like that `conda` (a popular package management system for Python) changes the python paths in `{PATH}`. I also don't like the difficulty of installing different versions of Python with it and how its ability to install from different channels can interfere with dependencies.
 
-Instead I use `pyenv` and its associated `pyenv-virtualenv` to have the ability to easily install different versions of Python and create virtual environments with adding only one addition to my path.  
+I used to use `pyenv` and its associated `pyenv-virtualenv` to install different versions of Python and create virtual environments, tracking dependencies by hand with `pip freeze > requirements.txt`. I have since migrated to [`uv`](https://docs.astral.sh/uv/), which replaces that whole stack (`pyenv` + `pyenv-virtualenv` + `pip` + `requirements.txt`) with a single, very fast tool.
 
-Here is a [useful overview](https://stackoverflow.com/questions/41573587/what-is-the-difference-between-venv-pyvenv-pyenv-virtualenv-virtualenvwrappe  
-) of different virtual env options.
+`uv` can:
+
+- install and manage multiple Python versions (replacing `pyenv install`),
+- create and manage virtual environments (replacing `pyenv-virtualenv`),
+- resolve, install, and lock dependencies via `pyproject.toml` + `uv.lock` (replacing manual `requirements.txt`),
+- and run commands inside the right environment automatically (`uv run`).
+
+Unlike `conda`, it does not hijack your `PATH`: there are no shims to initialize in your startup script. The migration also means the `pyenv` initialization and the `pyenv` build-dependency flags (`LDFLAGS`, `CPPFLAGS`, etc.) can be removed from your startup script — `uv` downloads prebuilt standalone Python binaries, so those build dependencies are no longer needed.
+
+Here is a [useful overview](https://stackoverflow.com/questions/41573587/what-is-the-difference-between-venv-pyvenv-pyenv-virtualenv-virtualenvwrappe) of the older virtual env options for context.
 
 # Installation
 
@@ -15,158 +23,162 @@ Here is a [useful overview](https://stackoverflow.com/questions/41573587/what-is
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-2. Install pyenv
+2. Install uv
 
-https://github.com/pyenv/pyenv?tab=readme-ov-file#installation
+https://docs.astral.sh/uv/getting-started/installation/
 
 ```zsh
 brew update
-brew install pyenv
+brew install uv
 ```
-3. Set up your shell environment for pyenv; if on MacOS follow instructions for zsh
 
-https://github.com/pyenv/pyenv?tab=readme-ov-file#set-up-your-shell-environment-for-pyenv
+Alternatively, the standalone installer (not tied to Homebrew):
 
 ```zsh
-echo 'export PYENV_ROOT="$HOME/.pyenv"' >> ~/.zshrc
-echo '[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"' >> ~/.zshrc
-echo 'eval "$(pyenv init -)"' >> ~/.zshrc
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-4. Install dependencies for a sane python environment
-
-https://github.com/pyenv/pyenv/wiki#suggested-build-environment
+3. (Optional) Enable shell completion
 
 ```zsh
-xcode-select --install
-brew install openssl readline sqlite3 xz zlib tcl-tk
+echo 'eval "$(uv generate-shell-completion zsh)"' >> ~/.zshrc
 ```
 
-5. Add flags for build dependencies in start up script
-
-```zsh
-echo 'export LDFLAGS="-L/opt/homebrew/opt/readline/lib -L/opt/homebrew/opt/sqlite/lib -L/opt/homebrew/opt/zlib/lib"' >> ~/.zshrc
-echo 'export CPPFLAGS="-I/opt/homebrew/opt/readline/include -I/opt/homebrew/opt/sqlite/include -I/opt/homebrew/opt/zlib/include"' >> ~/.zshrc
-echo 'export PATH="/opt/homebrew/opt/sqlite/bin:$PATH"' >> ~/.zshrc
-```
-
-6. Install pyenv-virtualenv
-
-https://github.com/pyenv/pyenv-virtualenv  
-
-```zsh
-brew install pyenv-virtualenv
-echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.zshrc
-```
+That's it — no `PATH` shims or build-dependency flags to add to your startup script.
 
 ## Installation check
 
-Check that pyenv is in your PATH:  
+Check that uv is in your PATH:
 
 ```zsh
-which pyenv
+which uv
+uv --version
 ```
-should not return an empty string.  
 
-Check that pyenv's shims directory is in your PATH:  
+`which uv` should not return an empty string.
+
+If you are in a VSCode Terminal and the wrong interpreter is being picked up, select the project's interpreter with the **Python: Select Interpreter** command and point it at the project's `.venv/bin/python`. See `vscode_kernels.md` for kernel selection in notebooks.
+
+# Migrating an existing pyenv + requirements.txt project
+
+In the existing project directory:
+
+1. Pin the Python version you want the project to use (writes a `.python-version` file, the same file `pyenv local` used):
 
 ```zsh
-echo $PATH | grep --color=auto "$(pyenv root)/shims"
+uv python pin 3.12
 ```
 
-Check that python in your session refers to path within pyenv.  
+2. Create a project environment from your existing `requirements.txt`:
 
 ```zsh
-which python
-```
-should return `{HOME}/.pyenv/shims/python`. If this is not the case in a new Terminal window, make sure the start up scripts (e.g. `zshrc` or `z_profile` are loaded with the corect setup commands).
-
-If this is in a VSCode Terminal check `Setting > Extensions > Python` to opt out of 
-
-```json
-"python.experiments.optOutFrom": [ 
-    "pythonTerminalEnvVarActivation"
-    ],
+uv venv
+uv pip install -r requirements.txt
 ```
 
-Another place to look is `Setting > Features > Terminal`.
+This gives you a working `.venv` with the `pip`-compatible interface and is the lowest-friction path.
+
+3. (Recommended) Convert to a managed `pyproject.toml` so dependencies are declared and locked. Initialize project metadata, then add your dependencies:
+
+```zsh
+uv init --bare        # creates pyproject.toml without touching your code
+uv add -r requirements.txt
+```
+
+`uv add` writes the dependencies into `pyproject.toml`, resolves them, creates/updates `uv.lock`, and installs them into `.venv`. Commit both `pyproject.toml` and `uv.lock` to version control. You can then delete `requirements.txt`.
 
 # Helpful commands
 
-## Upgrade pyenv
+## Upgrade uv
 
 ```zsh
-brew upgrade pyenv
+brew upgrade uv
+# or, if installed via the standalone installer:
+uv self update
 ```
 
-## Install specific python versions
+## Install / list / pin Python versions
 
 ```zsh
-pyenv install 3.8.3
+uv python install 3.12        # replaces `pyenv install 3.12`
+uv python install 3.10 3.11   # several at once
+uv python list                # installed and available versions
+uv python pin 3.12            # pin the version for the current project (.python-version)
 ```
 
-## Check installed python versions
+## Start a new project
 
 ```zsh
-pyenv version
-pyenv versions
+uv init my-project            # creates pyproject.toml, .python-version, etc.
+cd my-project
 ```
 
-## Check virtualenvs
-
-There are two entries for each virtualenv, and the shorter one is a symlink.
+## Create a virtual environment
 
 ```zsh
-pyenv virtualenvs
+uv venv                       # creates .venv using the pinned Python
+uv venv --python 3.11         # or a specific version
 ```
 
-## Create a virtualenv
+`uv` automatically creates and uses `.venv` in the project root, so you usually do not need to activate it manually — `uv run` and `uv add`/`uv sync` find it. To activate it explicitly:
 
 ```zsh
-pyenv virtualenv 2.7.10 my-virtual-env-2.7.10
+source .venv/bin/activate
+deactivate
 ```
 
-## Clone a virtual env
-
-In an active environment, start with 
+## Add / remove dependencies
 
 ```zsh
-pip freeze > requirements.txt
-pyenv virtualenv {PYTHON-VERSION} {VIRTUALENVNAME}
-pyenv shell {VIRTUALENVNAME}
-pip install -r requirements.txt
+uv add numpy pandas           # adds to pyproject.toml, updates uv.lock, installs
+uv add "scipy>=1.11"          # with a version constraint
+uv add --dev pytest ruff      # development-only dependency
+uv remove pandas
 ```
 
-## Global python version activation
+## Sync an environment (the "clone a virtual env" workflow)
+
+Where you used to `pip freeze > requirements.txt` and `pip install -r requirements.txt`, the lockfile now does this reproducibly. After cloning a repo that has a `pyproject.toml` + `uv.lock`:
 
 ```zsh
-pyenv global 3.8.3
+uv sync                       # creates .venv and installs the exact locked versions
 ```
 
-## Global virtual env activation
+To update the lockfile to the latest allowed versions:
 
 ```zsh
-pyenv global py38
+uv lock --upgrade
+uv sync
 ```
 
-## Switch to python version in current session from that point on
+## Run a command in the project environment
+
+No activation needed — `uv run` ensures the environment is in sync first:
 
 ```zsh
-pyenv shell 3.8.3
+uv run python my_script.py
+uv run pytest
+uv run jupyter lab
 ```
 
-## Directory specific virtual env activation
+## pip-compatible interface
 
-This env will always be activated in that path
+For ad hoc installs or to mirror old habits, `uv pip` mirrors `pip`:
 
 ```zsh
-pyenv local py-networkglm
+uv pip install -r requirements.txt
+uv pip install numpy
+uv pip freeze
+uv pip list
 ```
 
-## Activate any virtual env from anywhere
+Prefer `uv add` / `uv sync` for project work so dependencies stay declared in `pyproject.toml` and locked in `uv.lock`; use `uv pip` mainly for migration or quick experiments.
+
+## Tools (formerly global pip installs / pipx)
+
+Run or install command-line tools in isolated environments without polluting a project:
 
 ```zsh
-pyenv activate {VIRTUALENVNAME}
-pyenv deactivate
+uvx ruff check .              # run a tool one-off (ephemeral env)
+uv tool install ruff          # install a tool globally for your user
 ```
-

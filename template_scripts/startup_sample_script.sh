@@ -8,12 +8,6 @@ alias ls='ls -aGFh'
 # Homebrew initialization
 eval "$(/opt/homebrew/bin/brew shellenv)"
 
-# Pyenv initialization
-export PYENV_ROOT="$HOME/.pyenv"
-[[ -d $PYENV_ROOT/bin ]] && export PATH="$PYENV_ROOT/bin:$PATH"
-eval "$(pyenv init -)"
-eval "$(pyenv virtualenv-init -)"
-
 # Python build dependencies recommended by pyenv
 # Uncomment when you want to run pyenv install {version}
 # Then source via `exec "$SHELL"`

@@ -14,13 +14,13 @@
 - [x] Configure git
     - [x] Add global gitignore
     - [x] Run git config https://git-scm.com/book/en/v2/Getting-Started-First-Time-Git-Setup
-- [x] pyenv
+- [x] uv
 - [x] Slack
 - [x] VSCode
 - [x] Set up VPN
 - [x] Set up stats software 
     - [x] R - homebrew
-    - [x] Python - pyenv
+    - [x] Python - uv
     - [x] Julia - homebrew
     - [x] JupyterLab - homebrew
     - [x] Add R kernel to Jupyter
